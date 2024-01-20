@@ -2,6 +2,8 @@ import React from "react";
 import * as ReactDOM from "react-dom/client";
 import { dbClient } from "./dbClient";
 import { Database } from "./dbTypes";
+import { Auth } from "@supabase/auth-ui-react";
+import { ThemeSupa } from "@supabase/auth-ui-shared";
 
 type mainCourse = Database["public"]["Tables"]["courses"]["Row"];
 
@@ -9,6 +11,7 @@ ReactDOM.createRoot(document.querySelector("#root")!).render(<App />);
 
 export default function App() {
 	const [courses, setCourses] = React.useState<mainCourse[]>([]);
+	const [session, setSession] = React.useState(null);
 	React.useEffect(() => {
 		getAllCourses();
 	}, []);
@@ -16,54 +19,55 @@ export default function App() {
 		const { data } = await dbClient.from("courses").select();
 		setCourses(data!);
 	}
+	React.useEffect(() => {
+		dbClient.auth.getSession().then(({ data: { session } }) => {
+			setSession(session);
+		});
+
+		const {
+			data: { subscription },
+		} = dbClient.auth.onAuthStateChange((_event, session) => {
+			setSession(session);
+		});
+
+		return () => subscription.unsubscribe();
+	}, []);
+	if (!session)
+		return <Auth supabaseClient={dbClient} appearance={{ theme: ThemeSupa }} />;
+	async function logout() {
+		await dbClient.auth.signOut();
+	}
+
 	const c = courses.map((course) => (
-		<CourseComp course={course} key={course["id"]} />
+		<>
+			<CourseComp course={course} key={course["id"]} />
+		</>
 	));
-	return <>{c}</>;
+	return (
+		<>
+			<nav>
+				<ul>
+					<li onClick={logout}>log out.</li>
+				</ul>
+			</nav>
+			{c}
+		</>
+	);
 }
 
 function CourseComp(props: { course: mainCourse }) {
-	React.useEffect(() => {
-		let ignore: boolean = false;
-		prereqs?.map((p) =>
-			p.map(async (p0) => {
-				if (!isNaN(Number(p0))) {
-					const pre = await getCourse(Number(p0));
-					if (pre) p0 = `${pre[0].subject} ${pre[0].course_number}`;
-				}
-				return p0;
-			})
-		);
-		if (!ignore) {
-			prereqs?.forEach((p) => {
-				if (p.length === 1) formattedPrereqs.push(<li>{p[0]}</li>);
-				else {
-					let str: string = "";
-					p.forEach((p0, i) => {
-						if (i === p.length) str += p0;
-						else str += `${p0} OR`;
-					});
-					formattedPrereqs.push(str);
-				}
-			});
-		}
-
-		return () => {
-			ignore = true;
-		};
-	}, []);
 	const prereqs = props.course.prerequisites
 		?.toString()
 		.split(/,/)
-		.map((p) => p.split(/OR/));
-	const formattedPrereqs = [];
-	async function getCourse(id: number) {
-		const { data } = await dbClient
-			.from("courses")
-			.select("subject, course_number")
-			.eq("id", id);
-		return data;
-	}
+		.map((p) => <li key={p}>{p}</li>);
+	const coreqs = props.course["corequisites"]
+		?.toString()
+		.split(/,/)
+		.map((p) => (
+			<li key={p}>
+				<em>{p}</em>
+			</li>
+		));
 	return (
 		<div id="course-box">
 			<strong>{`${props.course["subject"]} ${props.course["course_number"]} - ${props.course["title"]}`}</strong>
@@ -72,19 +76,44 @@ function CourseComp(props: { course: mainCourse }) {
 			<br />
 			<br />
 			<strong>Prerequisites:</strong>
-			<ul></ul>
+			{prereqs ? (
+				<ul>{prereqs}</ul>
+			) : (
+				<>
+					<br />
+					<em>No prerequisites.</em>
+					<br />
+				</>
+			)}
+			<strong>Corequisites:</strong>
+			{coreqs ? (
+				<ul>{coreqs}</ul>
+			) : (
+				<>
+					<br />
+					<em>No corequisites.</em>
+				</>
+			)}
 			<SectionTable course={props.course} />
 		</div>
 	);
 }
 function SectionTable(props: { course: mainCourse }) {
-	const sections = props.course.sections?.map((section) => (
-		<tr key={section}>{section}</tr>
+	const sections = props.course.sections?.map((section, i) => (
+		<tr key={section}>
+			<td>{section}</td>
+			<td>{props.course["capacity"]?.at(2 * i) ?? "0"}</td>
+			<td>{props.course["capacity"]?.at(2 * i + 1) ?? "0"}</td>
+		</tr>
 	));
 	return (
 		<table>
-			<th>Section</th>
-			<tbody>{sections}</tbody>
+			<tr>
+				<th>Section</th>
+				<th>Total Seats</th>
+				<th>Seats Remaining</th>
+			</tr>
+			{sections}
 		</table>
 	);
 }

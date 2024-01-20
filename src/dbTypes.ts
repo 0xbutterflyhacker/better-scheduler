@@ -11,6 +11,8 @@ export interface Database {
     Tables: {
       courses: {
         Row: {
+          capacity: number[] | null
+          corequisites: Json | null
           course_number: number | null
           description: string | null
           id: number
@@ -21,6 +23,8 @@ export interface Database {
           title: string | null
         }
         Insert: {
+          capacity?: number[] | null
+          corequisites?: Json | null
           course_number?: number | null
           description?: string | null
           id?: number
@@ -31,6 +35,8 @@ export interface Database {
           title?: string | null
         }
         Update: {
+          capacity?: number[] | null
+          corequisites?: Json | null
           course_number?: number | null
           description?: string | null
           id?: number
