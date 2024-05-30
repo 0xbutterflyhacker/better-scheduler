@@ -130,3 +130,6 @@ dist
 .pnp.*
 
 .eslintrc.json
+.postcssrc
+tailwind.config.js
+target/
